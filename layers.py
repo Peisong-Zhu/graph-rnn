@@ -65,34 +65,6 @@ class GraphBasicRNNAttentionCell(BasicRNNCell):
         return output, output
 
 
-def get_layer_uid(layer_name=''):
-    """Helper function, assigns unique layer IDs."""
-    if layer_name not in _LAYER_UIDS:
-        _LAYER_UIDS[layer_name] = 1
-        return 1
-    else:
-        _LAYER_UIDS[layer_name] += 1
-        return _LAYER_UIDS[layer_name]
-
-
-def sparse_dropout(x, keep_prob, noise_shape):
-    """Dropout for sparse tensors."""
-    random_tensor = keep_prob
-    random_tensor += tf.random_uniform(noise_shape)
-    dropout_mask = tf.cast(tf.floor(random_tensor), dtype=tf.bool)
-    pre_out = tf.sparse_retain(x, dropout_mask)
-    return pre_out * (1./keep_prob)
-
-
-def dot(x, y, sparse=False):
-    """Wrapper for tf.matmul (sparse vs dense)."""
-    if sparse:
-        res = tf.sparse_tensor_dense_matmul(x, y)
-    else:
-        res = tf.matmul(x, y)
-    return res
-
-
 class Layer(object):
     """Base layer class. Defines basic API for all layer objects.
     Implementation inspired by keras (http://keras.io).
@@ -212,16 +184,3 @@ class GraphRNN(Layer):
                 # [batch_size, 2 * n_hidden]
                 self.outputs = final_state
 
-
-        # Final state
-        # self.fw_final_states = states_fw
-        # self.bw_final_states = states_bw
-        #
-        # self.sequence_length = sequence_length
-        #
-        # self.all_layers = list(layer.all_layers)
-        # self.all_params = list(layer.all_params)
-        # self.all_drop = dict(layer.all_drop)
-        #
-        # self.all_layers.extend( [self.outputs] )
-        # self.all_params.extend( rnn_variables )
