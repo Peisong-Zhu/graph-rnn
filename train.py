@@ -15,9 +15,9 @@ from layers import GraphBasicRNNAttentionCell
 # Settings
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_string('dataset', 'cora2708', 'Dataset string.')  # 'cora', 'citeseer', 'pubmed'
+flags.DEFINE_string('dataset', 'cora2708', 'Dataset string.')  
 flags.DEFINE_integer('classnum', 7, 'Number of class')
-flags.DEFINE_string('model', 'gcn', 'Model string.')  # 'gcn', 'gcn_cheby', 'dense'
+flags.DEFINE_string('model', 'gcn', 'Model string.') 
 flags.DEFINE_integer('percent', 80, ' ')
 flags.DEFINE_integer('k_level', 5, ' ')
 flags.DEFINE_integer('trainable', 0, ' ')
@@ -53,13 +53,6 @@ def evaluate(sess, model, feed_dict):
         model.accuracy_val,
         model.accuracy_test], feed_dict)
     return loss, accuracy_val, accuracy_test
-
-
-# def evaluatepro(features, support, labels, mask, placeholders):
-#     t_test = time.time()
-#     feed_dict_val = construct_feed_dict(features, support, labels, mask, placeholders)
-#     outs_val = sess.run(model.outputs, feed_dict=feed_dict_val)
-#     return outs_val, (time.time() - t_test)
 
 def main(unused_argv):
     if len(unused_argv) != 1: # prints a message if you've entered flags incorrectly
