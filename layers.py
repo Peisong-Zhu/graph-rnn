@@ -1,5 +1,4 @@
 import tensorflow as tf
-# from tf.contrib.rnn.python.ops.core_rnn_cell_impl import BasicRNNCell as BasicRNNCell
 from tensorflow.contrib.rnn.python.ops.core_rnn_cell_impl import BasicRNNCell as BasicRNNCell
 import tensorflow.contrib.layers as layers
 
@@ -46,20 +45,9 @@ class GraphBasicRNNAttentionCell(BasicRNNCell):
                 trans = tf.nn.embedding_lookup(expnew, self.transfer_matrix)
             (n1, n2, n3) = tf.unstack(tf.shape(trans))
             trans = tf.reshape(trans, [n1, n2])
-            print trans.shape
             expsum = tf.reduce_sum(trans, 1, keep_dims=True)
-            print expsum.shape
             trans = trans / expsum
-            print trans.shape
-            # expsum = tf.matmul(self.transfer_matrix, exp)
-            # transVariable = tf.convert_to_tensor(self.transfer_matrix)
-            # trans = self.transfer_matrix
-
-            # for row_idx, row in enumerate(trans):
-            #     for col_idx, element in enumerate(row):
-            #         if element != 0.0:
-            #             print element, trans[row_idx, col_idx]
-            #              transVariable[row_idx, col_idx] = tf.multiply(tf.divide(exp[col_idx, 0], expsum[row_idx, 0]), element)
+            
         statetrans = tf.matmul(trans, state)
         output, output = super(GraphBasicRNNAttentionCell, self).__call__(inputs=inputs, state=statetrans, scope=scope)
         return output, output
