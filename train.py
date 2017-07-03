@@ -1,32 +1,35 @@
-from __future__ import division
-from __future__ import print_function
-
 import time
 import os
 import shutil
 import tensorflow as tf
+import numpy as np
 
 from utils import *
 from models import GRN
+from models import Pointer_GRN
+from models import Softmax
 from layers import GraphBasicRNNCell
+from layers import GraphGRUCell
+from layers import GraphGRUAttentionCell
 from layers import GraphBasicRNNAttentionCell
 
 
 # Settings
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_string('dataset', 'cora2708', 'Dataset string.')  
+flags.DEFINE_string('dataset', 'cora2708', 'Dataset string.')  # 'cora', 'citeseer', 'pubmed'
 flags.DEFINE_integer('classnum', 7, 'Number of class')
-flags.DEFINE_string('model', 'gcn', 'Model string.') 
+flags.DEFINE_string('model', 'pointer', 'Model string.')
 flags.DEFINE_integer('percent', 80, ' ')
-flags.DEFINE_integer('k_level', 5, 'step length of squence ')
+flags.DEFINE_integer('k_level', 5, ' ')
 flags.DEFINE_integer('trainable', 0, ' ')
-flags.DEFINE_string('feature', 'bow', ' ') # 'bow' 'embedding' 'random'
+flags.DEFINE_string('feature', 'embedding', ' ') # 'bow' 'embedding' 'random'
 flags.DEFINE_float('learning_rate', 0.005, 'Initial learning rate.')
 flags.DEFINE_integer('epochs', 200, 'Number of epochs to train.')
-flags.DEFINE_integer('input_size', 128, '')
+flags.DEFINE_integer('input_size', 128, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden1', 128, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('attention', 0, 'whether use attention mechanism')
+flags.DEFINE_integer('pointer', 1, 'whether use pointer mechanism')
 flags.DEFINE_float('dropout', 0.5, 'Dropout rate (1 - keep probability).')
 flags.DEFINE_float('max_grad_norm', 5.0, 'max-grad-norm')
 flags.DEFINE_float('weight_decay', 5e-4, 'Weight for L2 loss on embedding matrix.')
@@ -48,22 +51,20 @@ def construct_feed_dict(inputs, labels, train_mask, val_mask, test_mask, protran
 
 # Define model evaluation function
 def evaluate(sess, model, feed_dict):
-    loss, accuracy_val, accuracy_test = sess.run([
+    loss, accuracy_val, accuracy_test, prediction = sess.run([
         model.loss_val,
         model.accuracy_val,
-        model.accuracy_test], feed_dict)
-    return loss, accuracy_val, accuracy_test
+        model.accuracy_test,
+        model.prediction], feed_dict)
+    return loss, accuracy_val, accuracy_test, prediction
 
 def main(unused_argv):
     if len(unused_argv) != 1: # prints a message if you've entered flags incorrectly
         raise Exception("Problem with flags: %s" % unused_argv)
-    fres = open('data/' + FLAGS.dataset + '/res_attention.txt', 'a')
-    fres.write('percent:' + str(FLAGS.percent) + ' attention' + str(FLAGS.attention) + ' k_level:' + str(FLAGS.k_level) + ' trainabel:' + str(FLAGS.trainable) +
-               ' featureType:' + FLAGS.feature + ' lr:' + str(FLAGS.learning_rate) + ' input_size:' + str(FLAGS.input_size) + ' hidden_size:' + str(FLAGS.hidden1) + '\n')
     print('k_level:' + str(FLAGS.k_level) + ' trainabel:' + str(FLAGS.trainable) + ' featureType:' + FLAGS.feature +
                ' lr:' + str(FLAGS.learning_rate) + ' input_size:' + str(FLAGS.input_size) + ' hidden_size:' + str(FLAGS.hidden1))
-    maxValAuc_test_allfold = 0.0
-    minValLoss_test_allfold = 0.0
+    maxValAuc_test_allfold = []
+    minValLoss_test_allfold = []
     for fold in range(10):
         f = str(fold)
         fres.write('fold ' + f + ':')
@@ -71,7 +72,7 @@ def main(unused_argv):
         base = 'data/' + FLAGS.dataset + '/' + f
         tflog_dir = os.path.join(base + '/tflog')
         # Load data
-        id, labels, train_mask, val_mask, test_mask, protransfer, inputs = load_data(FLAGS.dataset, FLAGS.percent, FLAGS.k_level, f, FLAGS.attention)
+        id, labels, train_mask, val_mask, test_mask, protransfer, inputs, labeldis = load_data(FLAGS.dataset, FLAGS.percent, FLAGS.k_level, f, FLAGS.attention, FLAGS.pointer)
         idnum = len(id)
         # Some preprocessing
         # features = preprocess_features(features)
@@ -112,23 +113,52 @@ def main(unused_argv):
 
             # Create model
             if FLAGS.attention == 0:
-                cell_type = GraphBasicRNNCell
+                # cell_type = GraphBasicRNNCell
+                cell_type = GraphGRUCell
             else:
-                cell_type = GraphBasicRNNAttentionCell
-            model = GRN(
-                placeholders=placeholders,  # transMatrix, labels, labels_mask
-                feature=features,
-                trans_matrix=protransfer,
-                cell=cell_type,
-                input_size=FLAGS.input_size,
-                classnum=FLAGS.classnum,
-                hidden_size=FLAGS.hidden1,
-                learning_rate=FLAGS.learning_rate,
-                dropout_keep_proba=0.5,
-                max_grad_norm=FLAGS.max_grad_norm,
-                trainable=FLAGS.trainable,
-                featureType=FLAGS.feature,
-                scope=None)
+                cell_type = GraphGRUAttentionCell
+
+            if FLAGS.model == 'pointer':
+                model = Pointer_GRN(
+                    placeholders=placeholders,  # transMatrix, labels, labels_mask
+                    feature=features,
+                    trans_matrix=protransfer,
+                    labeldistribution=labeldis,
+                    cell=cell_type,
+                    input_size=FLAGS.input_size,
+                    classnum=FLAGS.classnum,
+                    hidden_size=FLAGS.hidden1,
+                    learning_rate=FLAGS.learning_rate,
+                    dropout_keep_proba=0.5,
+                    max_grad_norm=FLAGS.max_grad_norm,
+                    trainable=FLAGS.trainable,
+                    featureType=FLAGS.feature,
+                    scope=None)
+            if FLAGS.model == 'gru':
+                model = GRN(
+                    placeholders=placeholders,  # transMatrix, labels, labels_mask
+                    feature=features,
+                    trans_matrix=protransfer,
+                    cell=cell_type,
+                    input_size=FLAGS.input_size,
+                    classnum=FLAGS.classnum,
+                    hidden_size=FLAGS.hidden1,
+                    learning_rate=FLAGS.learning_rate,
+                    dropout_keep_proba=0.5,
+                    max_grad_norm=FLAGS.max_grad_norm,
+                    trainable=FLAGS.trainable,
+                    featureType=FLAGS.feature,
+                    scope=None)
+
+            # model = Softmax(
+            #              placeholders=placeholders,  # transMatrix, labels, labels_mask
+            #              feature=features,
+            #              classnum=FLAGS.classnum,
+            #              learning_rate=FLAGS.learning_rate,
+            #              trainable=FLAGS.trainable,
+            #              featureType=FLAGS.feature,
+            #              max_grad_norm=FLAGS.max_grad_norm,
+            #              scope=None)
 
             # Init variables
             saver = tf.train.Saver(tf.global_variables())
@@ -149,6 +179,7 @@ def main(unused_argv):
             minValLoss = 10.0
             maxValAuc_test = 0.0
             minValLoss_test = 0.0
+
             # f = open(base + '/pre.txt', 'w')
             # Train model
             for epoch in range(FLAGS.epochs):
@@ -172,7 +203,7 @@ def main(unused_argv):
 
                 step, summaries, summary_writer.add_summary(summaries, global_step=step)
                 feed_dict.update({placeholders['is_training']: False})
-                loss_val, accuracy_val, accuracy_test = evaluate(sess, model, feed_dict)
+                loss_val, accuracy_val, accuracy_test, pred = evaluate(sess, model, feed_dict)
                 cost_val.append(loss_val)
                 if accuracy_val >= maxValAuc:
                     maxValAuc = accuracy_val
@@ -198,17 +229,16 @@ def main(unused_argv):
             fres.write("  maxValAuc_accuracy = " + "{:.5f}".format(maxValAuc_test) + "  minValLoss_accuracy = " + "{:.5f}".format(minValLoss_test) + "\n")
             print("Test set results:", "maxValAuc_accuracy=", "{:.5f}".format(maxValAuc_test),
                   "minValLoss_accuracy=", "{:.5f}".format(minValLoss_test))
-            maxValAuc_test_allfold += maxValAuc_test
-            minValLoss_test_allfold += minValLoss_test
+            maxValAuc_test_allfold.append(maxValAuc_test)
+            minValLoss_test_allfold.append(minValLoss_test)
 
             shutil.rmtree(tflog_dir)
 
-    maxValAuc_test_allfold = maxValAuc_test_allfold/10
-    minValLoss_test_allfold = minValLoss_test_allfold/10
-    fres.write("allfold_meanResult:  maxValAuc_accuracy = " + "{:.5f}".format(maxValAuc_test_allfold) +
-               "  minValLoss_accuracy = " + "{:.5f}".format(minValLoss_test_allfold) + "\n")
-    fres.write("\n")
-    print("allfold mean results:", "maxValAuc_accuracy=", "{:.5f}".format(maxValAuc_test_allfold), "minValLoss_accuracy=", "{:.5f}".format(minValLoss_test_allfold))
+    maxValAuc_test_mean = np.mean(np.array(maxValAuc_test_allfold))
+    minValLoss_test_mean = np.mean(np.array(minValLoss_test_allfold))
+    maxValAuc_test_var = np.var(np.array(maxValAuc_test_allfold))
+    minValLoss_test_var = np.var(np.array(minValLoss_test_allfold))
+    print("allfold mean results:", "maxValAuc_accuracy=", "{:.5f}".format(maxValAuc_test_mean), "minValLoss_accuracy=", "{:.5f}".format(minValLoss_test_mean))
 
 
 
