@@ -87,25 +87,11 @@ class GRN():
 
             self.summary_op = tf.summary.merge_all()
 
-    # def _loss(self):
-    #     # Weight decay loss
-    #     for var in self.layers[0].vars.values():
-    #         self.loss += FLAGS.weight_decay * tf.nn.l2_loss(var)
-    #
-    #     # Cross entropy error
-    #     self.loss += masked_softmax_cross_entropy(self.outputs, self.placeholders['labels'],
-    #                                               self.placeholders['labels_mask'])
-
-    # def _accuracy(self):
-    #     self.accuracy = masked_accuracy(self.outputs, self.placeholders['labels'],
-    #                                     self.placeholders['labels_mask'])
-
     def build(self, scope):
         with tf.variable_scope('graphrnn') as scope:
             graphrnn = GraphRNN(
                             inputs=self.inputs_embedding,
-                            cell_fn=self.cell,
-                            # cell_init_args={'state_is_tuple':True},
+                            cell_fn=self.cell,                   
                             n_hidden=self.hidden_size,
                             initializer=tf.random_uniform_initializer(-0.1, 0.1),
                             # sequence_length=self.sqlen,
@@ -130,6 +116,3 @@ class GRN():
             with tf.variable_scope("embedding") as scope:
                 self.inputs_embedding = tf.nn.embedding_lookup(self.feature_matrix, self.inputs)
         print self.inputs_embedding.shape
-
-    # def predict(self):
-    #     return tf.nn.softmax(self.outputs)
