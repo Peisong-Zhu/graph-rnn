@@ -1,5 +1,10 @@
 import numpy as np
-import scipy.sparse as sp
+
+def sample_mask(idx, l):
+    """Create mask."""
+    mask = np.zeros(l)
+    mask[idx] = 1
+    return np.array(mask, dtype=np.bool)
 
 def getList(path):
     list = []
@@ -29,7 +34,39 @@ def normalizeGraph(graph):
             graph[i] = graph[i]/sum
     return graph
 
-def load_data(dataset_str, percent, k, f, attention):
+def updateNeiDict(node1, node2, dict):
+    if dict.has_key(node1):
+        temp1 = dict[node1]
+        if node2 not in temp1:
+            temp1.append(node2)
+        dict[node1] = temp1
+    else:
+        temp2 = []
+        temp2.append(node2)
+        dict[node1] = temp2
+
+def getNeiLabelDis(id, label, mask, graphpath):
+    labeldict = {}
+    for i in range(len(id)):
+        labeldict[id[i]] = (label[i], mask[i])
+    neidict = {}
+    for line in open(graphpath, 'r'):
+        nodes = line.strip().split('\t')
+        updateNeiDict(int(nodes[0]), int(nodes[1]), neidict)
+    label_num = len(set(label))
+    labeldis = np.zeros((len(id), label_num), dtype="float32")
+    for key, value in neidict.items():
+        for node in value:
+            la, ma = labeldict[node]
+            if ma == 1:
+                labeldis[key][la] = labeldis[key][la] + 1.0
+    for i in range(labeldis.shape[0]):
+        sum = np.sum(labeldis[i])
+        if sum != 0.0:
+            labeldis[i] = labeldis[i] / sum
+    return labeldis
+
+def load_data(dataset_str, percent, k, f, attention, pointer):
     """Load data."""
     if percent == 80:
         names = ['id', 'label', 'mask', 'graph']
@@ -69,8 +106,10 @@ def load_data(dataset_str, percent, k, f, attention):
             train_mask.append(0)
             val_mask.append(0)
             test_mask.append(0)
+    if pointer == 1:
+        labeldis = getNeiLabelDis(id, label, mask, "data/" + dataset_str + "/" + f + "/" + names[-1] + ".txt")
 
-    return np.array(id), np.array(label), np.array(train_mask), np.array(val_mask), np.array(test_mask), graph, inputs
+    return np.array(id), np.array(label), np.array(train_mask), np.array(val_mask), np.array(test_mask), graph, inputs, labeldis
 
 
 def getEmbedding(efile, len1, len2):
